@@ -1,5 +1,5 @@
 import express from 'express';
-import { getLocalStops, getStopArrivals, getRouteName, getLocalInfo } from './apiTranslator.mjs';
+import { getLocalStops, getStopArrivals, getRouteName, getLocalInfo, getLocalInfoParallel } from './apiTranslator.mjs';
 
 export const router = express.Router();
 
@@ -42,7 +42,7 @@ router.get("/routeName", getRouteName, (request, response)=>{
 // Example: http://localhost:3000/localInfo?x=38.0815816&y=23.6858562
 // The response will contain the arrivals for the specified stop in JSON format
 // Note: The stopcode should be a valid stop code from the OASA API
-router.get("/localInfo", getLocalInfo, (request, response)=>{
+router.get("/localInfo", getLocalInfoParallel, (request, response)=>{
     console.log("Local info:", request.stops);
     response.status(200).send(request.stops);
 });
