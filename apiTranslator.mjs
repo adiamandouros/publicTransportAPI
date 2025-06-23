@@ -111,9 +111,9 @@ export const getStopRoutes = async (req, res, next) => {
   try {
     const apiRes = await axios.post(url);
     console.log("Got Routes for stop!");
-    if (req) req.routeName = apiRes.data;
+    if (req) req.stopRoutes = apiRes.data;
     if (typeof next === 'function') {
-      req.routeName = apiRes.data;
+      req.stopRoutes = apiRes.data;
       next();
     }
     return apiRes.data;
@@ -157,7 +157,7 @@ export const getLocalInfo = async (req, res, next) => {
  * Optimized and parallelized version of getLocalInfo.
  * Fetches stop routes and arrivals in parallel for each stop.
  */
-//http://localhost:3000/localStops?x=37.976910&y=23.648170
+//http://localhost:3000/localInfo?x=37.976910&y=23.648170
 export const getLocalInfoParallel = async (req, res, next) => {
   console.log("getLocalInfoParallel called");
   const stops = await getLocalStops(req, res);
