@@ -1,9 +1,9 @@
 # Public Transport API for ATH (OASA)
 
-##What
+## What
 This is an API to translate and forward requests to the OASA public API, which serves information about bus stops, routes and bus arrivals.
 
-#How
+## How
 The API provides different endpoints:
 1. **/localStops**
    a GET request with two params, `x` and `y`. Returns an array of JSON objects, representing the 20 closest bus stops around the point with `x` and `y` coordinates.
