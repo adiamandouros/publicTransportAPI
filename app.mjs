@@ -9,9 +9,9 @@ const PORT = process.env.PORT || 3000;
 app.use("/", router)
 
 //οτιδήποτε άλλο θα ανακατευθύνεται στο "/"
-app.use((req, res) => {
-    res.redirect('/')
-});
+// app.use((req, res) => {
+//     res.redirect('/')
+// });
 
 app.use((err, req, res, next) => {
     console.log(err.stack)
