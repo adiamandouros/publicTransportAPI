@@ -1,3 +1,4 @@
+globalThis.fetch = undefined;
 import express from 'express';
 import {router} from './routes.mjs'; // Assuming you have a routes.js file for additional routes
 
