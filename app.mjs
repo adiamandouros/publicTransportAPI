@@ -25,3 +25,13 @@ app.listen(PORT, () => {
   console.log("Server Listening on PORT:", PORT);
 });
 
+/*
+To ensure your Node.js app does not exceed 1GB of memory, start it with the `--max-old-space-size=1024` flag:
+
+    node --max-old-space-size=1024 app.mjs
+
+This limits the V8 heap to 1GB. You can also add a note in your code:
+*/
+
+// NOTE: To limit memory usage to 1GB, start the app with:
+// node --max-old-space-size=1024 app.mjs

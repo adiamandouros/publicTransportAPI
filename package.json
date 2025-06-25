@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node app.mjs",
+    "start": "node --max-old-space-size=1024 app.mjs",
     "dev": "nodemon app.mjs"
   },
   "repository": {
