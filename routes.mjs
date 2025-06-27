@@ -3,14 +3,14 @@ import { getLocalStops, getStopArrivals, getRouteName, getStopRoutes, getLocalIn
 
 export const router = express.Router();
 
-router.get("", (request, response)=>{
-    response.status(200).json({
-        status: "OK",
-        message: "Welcome to the OASA API Translator",
-        dir: __dirname,
-        file: __filename
-    });
-});
+// router.get("", (request, response)=>{
+//     response.status(200).json({
+//         status: "OK",
+//         message: "Welcome to the OASA API Translator",
+//         dir: __dirname,
+//         file: __filename
+//     });
+// });
 
 router.get("/", (request, response)=>{
     response.status(200).json({
