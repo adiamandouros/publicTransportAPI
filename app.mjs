@@ -1,9 +1,15 @@
 globalThis.fetch = undefined;
 import express from 'express';
+import cors from 'cors';
 import {router} from './routes.mjs';
 
 const app = express ();
 app.use(express.json());
+
+const options = {
+    origin: ['http://localhost','https://localhost', 'https://sonovabitc.win']
+}
+app.use(cors(options))
 
 const PORT = process.env.PORT || 3000;
 
