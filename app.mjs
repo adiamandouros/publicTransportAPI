@@ -4,9 +4,9 @@ import cors from 'cors';
 import {router} from './routes.mjs';
 
 const app = express ();
-app.use(express.json());
-
 app.use(cors())
+app.options('*', cors()); // enable pre-flight requests for all routes
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
