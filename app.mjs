@@ -6,6 +6,12 @@ import {router} from './routes.mjs';
 const app = express ();
 app.use(cors())
 app.options('*', cors()); // enable pre-flight requests for all routes
+app.use(cors({
+  origin: 'http://localhost:5173', // ← your dev frontend origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['*'], // or '*' if you're not sure
+  credentials: true
+}));
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
