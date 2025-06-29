@@ -10,8 +10,6 @@ app.use(cors({
   allowedHeaders: ['*'], // or '*' if you're not sure
   credentials: true
 }));
-
-app.options('*', cors()); // enable pre-flight requests for all routes
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
