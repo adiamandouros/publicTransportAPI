@@ -6,10 +6,7 @@ import {router} from './routes.mjs';
 const app = express ();
 app.use(express.json());
 
-const options = {
-    origin: ['http://localhost','https://localhost', 'https://sonovabitc.win']
-}
-app.use(cors(options))
+app.use(cors())
 
 const PORT = process.env.PORT || 3000;
 
