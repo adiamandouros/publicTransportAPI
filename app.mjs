@@ -3,28 +3,12 @@ import express from 'express';
 import cors from 'cors';
 import {router} from './routes.mjs';
 
-const app = express ();
+const app = express();
 
-const allowedOrigins = [
-  'https://homehub.sonovabitc.win',
-  'https://localhost:5173',
-  'http://localhost:3000'
-];
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+// ✅ Allow all origins with default CORS settings
+app.use(cors());
 
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+// ✅ Handle preflight requests (optional but safe)
 app.options('*', cors());
 
 app.use(express.json());
