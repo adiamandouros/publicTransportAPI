@@ -3,14 +3,15 @@ import express from 'express';
 import cors from 'cors';
 import {router} from './routes.mjs';
 
-const app = express();
+const app = express ();
+app.use(cors({
+  origin: 'http://localhost:5173', // ← your dev frontend origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['*'], // or '*' if you're not sure
+  credentials: true
+}));
 
-// ✅ Allow all origins with default CORS settings
-app.use(cors());
-
-// ✅ Handle preflight requests (optional but safe)
-app.options('*', cors());
-
+app.options('*', cors()); // enable pre-flight requests for all routes
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
@@ -33,4 +34,3 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log("Server Listening on PORT:", PORT);
-});
