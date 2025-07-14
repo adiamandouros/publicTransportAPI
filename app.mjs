@@ -7,11 +7,9 @@ const app = express ();
 app.use(cors({
   origin: 'https://homehub.sonovabitc.win', // ← your dev frontend origin
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['*'], // or '*' if you're not sure
   credentials: true
 }));
 
-app.options('*', cors()); // enable pre-flight requests for all routes
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
