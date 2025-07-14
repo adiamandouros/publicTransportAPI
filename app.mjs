@@ -5,7 +5,7 @@ import {router} from './routes.mjs';
 
 const app = express ();
 app.use(cors({
-  origin: 'http://localhost:5173', // ← your dev frontend origin
+  origin: 'https://homehub.sonovabitc.win', // ← your dev frontend origin
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['*'], // or '*' if you're not sure
   credentials: true
