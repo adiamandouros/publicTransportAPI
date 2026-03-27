@@ -12,7 +12,7 @@ export const getLocalStops = async (req, res, next) => {
     if (next) next(new Error('Missing coordinates'));
     return null;
   }
-  const url = `http://telematics.oasa.gr/api/?act=getClosestStops&p1=${x}&p2=${y}`;
+  const url = `https://telematics.oasa.gr/api/?act=getClosestStops&p1=${x}&p2=${y}`;
   console.log("Fetching closest stops from:", url);
   try {
     const apiRes = await axios.post(url);
@@ -44,7 +44,7 @@ export const getStopArrivals = async (req, res, next) => {
     if (next) next(new Error('Missing stopcode'));
     return null;
   }
-  const url = `http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopcode}`;
+  const url = `https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopcode}`;
   console.log("Fetching stop arrivals from:", url);
   try {
     const apiRes = await axios.post(url);
@@ -75,7 +75,7 @@ export const getRouteName = async (req, res, next) => {
     if (next) next(new Error('Missing route'));
     return null;
   }
-  const url = `http://telematics.oasa.gr/api/?act=getRouteName&p1=${route}`;
+  const url = `https://telematics.oasa.gr/api/?act=getRouteName&p1=${route}`;
   console.log("Fetching route names from:", url);
   try {
     const apiRes = await axios.post(url);
@@ -106,7 +106,7 @@ export const getStopRoutes = async (req, res, next) => {
     if (next) next(new Error('Missing stopcode'));
     return null;
   }
-  const url = `http://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopcode}`;
+  const url = `https://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopcode}`;
   console.log("Fetching route info from:", url);
   try {
     const apiRes = await axios.post(url);
