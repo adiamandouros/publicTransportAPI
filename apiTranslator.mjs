@@ -1,17 +1,60 @@
 import axios from 'axios';
+import https from 'https';
 
 const OASA_TIMEOUT_MS = 6000;
 const STOP_ROUTES_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CLOSEST_STOPS_TTL_MS = 60 * 1000;    // 1 minute
+const MAX_CACHE_ENTRIES = 500;
+
+// Reuse TCP+TLS connections across OASA calls. With 20+ parallel fan-out
+// requests to the same host, this eliminates per-call handshake overhead
+// and is a kindness to OASA's connection limits.
+const oasaAgent = new https.Agent({ keepAlive: true, maxSockets: 10 });
 
 // stopcode → { data, expiresAt }
 const stopRoutesCache = new Map();
+// "lat,lng" rounded to 3 decimals → { data, expiresAt }
+const closestStopsCache = new Map();
+
+// Bounded cache setter — drops the oldest entry when capacity is reached.
+// Map preserves insertion order, so first key is effectively FIFO.
+function cacheSet(cache, key, data, ttl) {
+    if (cache.size >= MAX_CACHE_ENTRIES) {
+        cache.delete(cache.keys().next().value);
+    }
+    cache.set(key, { data, expiresAt: Date.now() + ttl });
+}
 
 // axios's `timeout` option is socket-inactivity only — a slowly trickling
 // response evades it. AbortSignal.timeout enforces a true total-duration cap.
 const oasaRequestOptions = () => ({
     timeout: OASA_TIMEOUT_MS,
     signal: AbortSignal.timeout(OASA_TIMEOUT_MS),
+    httpsAgent: oasaAgent,
 });
+
+// Single-retry policy. We deliberately don't retry timeouts — they already
+// consumed the full budget and a second attempt usually also times out.
+// Network errors and 5xx responses fail fast and are worth retrying.
+function shouldRetry(err) {
+    if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') return false;
+    if (err.code === 'ECONNABORTED') return false;
+    if (!err.response) return true;
+    return err.response.status >= 500;
+}
+
+async function oasaPost(url) {
+    try {
+        return await axios.post(url, null, oasaRequestOptions());
+    } catch (err) {
+        if (!shouldRetry(err)) throw err;
+        console.warn(`OASA retry after ${err.message}: ${url}`);
+        // Small jittered backoff so a parallel fan-out's retries don't
+        // hit OASA in lockstep.
+        await new Promise(r => setTimeout(r, 150 + Math.random() * 100));
+        return axios.post(url, null, oasaRequestOptions());
+    }
+}
 
 // ── Pure OASA fetchers ──────────────────────────────────────────────────────
 // Return data on success, throw on failure. Never touch res — that's the
@@ -19,20 +62,26 @@ const oasaRequestOptions = () => ({
 // that the old `res`-threading pattern produced under Promise.all.
 
 async function fetchClosestStops(x, y) {
+    // Round to ~100m precision so nearby users share cache entries.
+    const key = `${Number(x).toFixed(3)},${Number(y).toFixed(3)}`;
+    const cached = closestStopsCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+
     const url = `https://telematics.oasa.gr/api/?act=getClosestStops&p1=${x}&p2=${y}`;
-    const res = await axios.post(url, null, oasaRequestOptions());
+    const res = await oasaPost(url);
+    cacheSet(closestStopsCache, key, res.data, CLOSEST_STOPS_TTL_MS);
     return res.data;
 }
 
 async function fetchStopArrivals(stopcode) {
     const url = `https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopcode}`;
-    const res = await axios.post(url, null, oasaRequestOptions());
+    const res = await oasaPost(url);
     return res.data;
 }
 
 async function fetchRouteName(route) {
     const url = `https://telematics.oasa.gr/api/?act=getRouteName&p1=${route}`;
-    const res = await axios.post(url, null, oasaRequestOptions());
+    const res = await oasaPost(url);
     return res.data;
 }
 
@@ -42,11 +91,8 @@ async function fetchStopRoutes(stopcode) {
     if (cached && cached.expiresAt > Date.now()) return cached.data;
 
     const url = `https://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopcode}`;
-    const res = await axios.post(url, null, oasaRequestOptions());
-    stopRoutesCache.set(stopcode, {
-        data: res.data,
-        expiresAt: Date.now() + STOP_ROUTES_TTL_MS,
-    });
+    const res = await oasaPost(url);
+    cacheSet(stopRoutesCache, stopcode, res.data, STOP_ROUTES_TTL_MS);
     return res.data;
 }
 
