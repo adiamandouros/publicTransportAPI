@@ -6,6 +6,13 @@ const STOP_ROUTES_TTL_MS = 60 * 60 * 1000; // 1 hour
 // stopcode → { data, expiresAt }
 const stopRoutesCache = new Map();
 
+// axios's `timeout` option is socket-inactivity only — a slowly trickling
+// response evades it. AbortSignal.timeout enforces a true total-duration cap.
+const oasaRequestOptions = () => ({
+    timeout: OASA_TIMEOUT_MS,
+    signal: AbortSignal.timeout(OASA_TIMEOUT_MS),
+});
+
 // ── Pure OASA fetchers ──────────────────────────────────────────────────────
 // Return data on success, throw on failure. Never touch res — that's the
 // caller's job. Separating fetch from response avoids the double-send bugs
@@ -13,19 +20,19 @@ const stopRoutesCache = new Map();
 
 async function fetchClosestStops(x, y) {
     const url = `https://telematics.oasa.gr/api/?act=getClosestStops&p1=${x}&p2=${y}`;
-    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    const res = await axios.post(url, null, oasaRequestOptions());
     return res.data;
 }
 
 async function fetchStopArrivals(stopcode) {
     const url = `https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopcode}`;
-    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    const res = await axios.post(url, null, oasaRequestOptions());
     return res.data;
 }
 
 async function fetchRouteName(route) {
     const url = `https://telematics.oasa.gr/api/?act=getRouteName&p1=${route}`;
-    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    const res = await axios.post(url, null, oasaRequestOptions());
     return res.data;
 }
 
@@ -35,7 +42,7 @@ async function fetchStopRoutes(stopcode) {
     if (cached && cached.expiresAt > Date.now()) return cached.data;
 
     const url = `https://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopcode}`;
-    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    const res = await axios.post(url, null, oasaRequestOptions());
     stopRoutesCache.set(stopcode, {
         data: res.data,
         expiresAt: Date.now() + STOP_ROUTES_TTL_MS,
