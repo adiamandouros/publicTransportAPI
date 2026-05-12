@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const OASA_TIMEOUT_MS = 4000;
+const OASA_TIMEOUT_MS = 6000;
 const STOP_ROUTES_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 // stopcode → { data, expiresAt }
