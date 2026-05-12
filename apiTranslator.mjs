@@ -1,190 +1,189 @@
 import axios from 'axios';
 
-export const getLocalStops = async (req, res, next) => {
-  console.log("getLocalStops called");
-  // Support calling with (req, res, next) as middleware or with (req) as a function
-  const x = req.query?.x || req.x;
-  const y = req.query?.y || req.y;
-  if (!x || !y) {
-    if (res && res.status) {
-      res.status(400).json({ error: 'Missing coordinates' });
-    }
-    if (next) next(new Error('Missing coordinates'));
-    return null;
-  }
-  const url = `https://telematics.oasa.gr/api/?act=getClosestStops&p1=${x}&p2=${y}`;
-  console.log("Fetching closest stops from:", url);
-  try {
-    const apiRes = await axios.post(url);
-    console.log("Got closest stops!");
-    if (req) req.closestStops = apiRes.data;
-    // If used as middleware, call next()
-    if (typeof next === 'function') {
-      req.closestStops = apiRes.data;
-      next();
-    }
-    return apiRes.data;
-  } catch (err) {
-    console.error("Error fetching closest stops:", err);
-    if (res && res.status) {
-      res.status(500).json({ error: 'Failed to fetch closest stops', details: err.message });
-    }
-    if (next) next(err);
-    return null;
-  }
+const OASA_TIMEOUT_MS = 4000;
+const STOP_ROUTES_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+// stopcode → { data, expiresAt }
+const stopRoutesCache = new Map();
+
+// ── Pure OASA fetchers ──────────────────────────────────────────────────────
+// Return data on success, throw on failure. Never touch res — that's the
+// caller's job. Separating fetch from response avoids the double-send bugs
+// that the old `res`-threading pattern produced under Promise.all.
+
+async function fetchClosestStops(x, y) {
+    const url = `https://telematics.oasa.gr/api/?act=getClosestStops&p1=${x}&p2=${y}`;
+    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    return res.data;
 }
 
+async function fetchStopArrivals(stopcode) {
+    const url = `https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopcode}`;
+    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    return res.data;
+}
+
+async function fetchRouteName(route) {
+    const url = `https://telematics.oasa.gr/api/?act=getRouteName&p1=${route}`;
+    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    return res.data;
+}
+
+// stop→routes is essentially static — cache aggressively to cut OASA load.
+async function fetchStopRoutes(stopcode) {
+    const cached = stopRoutesCache.get(stopcode);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+    const url = `https://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopcode}`;
+    const res = await axios.post(url, null, { timeout: OASA_TIMEOUT_MS });
+    stopRoutesCache.set(stopcode, {
+        data: res.data,
+        expiresAt: Date.now() + STOP_ROUTES_TTL_MS,
+    });
+    return res.data;
+}
+
+// ── Express middleware ──────────────────────────────────────────────────────
+
+export const getLocalStops = async (req, res, next) => {
+    console.log("getLocalStops called");
+    const { x, y } = req.query;
+    if (!x || !y) return res.status(400).json({ error: 'Missing coordinates' });
+    try {
+        req.closestStops = await fetchClosestStops(x, y);
+        next();
+    } catch (err) {
+        console.error("Error fetching closest stops:", err.message);
+        next(err);
+    }
+};
+
 export const getStopArrivals = async (req, res, next) => {
-  console.log("getStopArrivals called");
-  const stopcode = req.query?.stopcode || req.stopcode;
-  if (!stopcode) {
-    if (res && res.status) {
-      res.status(400).json({ error: 'Missing stopcode' });
+    console.log("getStopArrivals called");
+    const { stopcode } = req.query;
+    if (!stopcode) return res.status(400).json({ error: 'Missing stopcode' });
+    try {
+        req.stopArrivals = await fetchStopArrivals(stopcode);
+        next();
+    } catch (err) {
+        console.error("Error fetching stop arrivals:", err.message);
+        next(err);
     }
-    if (next) next(new Error('Missing stopcode'));
-    return null;
-  }
-  const url = `https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopcode}`;
-  console.log("Fetching stop arrivals from:", url);
-  try {
-    const apiRes = await axios.post(url);
-    console.log("Got stop arrivals!");
-    if (req) req.stopArrivals = apiRes.data;
-    if (typeof next === 'function') {
-      req.stopArrivals = apiRes.data;
-      next();
-    }
-    return apiRes.data;
-  } catch (err) {
-    console.error("Error fetching stop arrivals:", err);
-    if (res && res.status) {
-      res.status(500).json({ error: 'Failed to fetch stop arrivals', details: err.message });
-    }
-    if (next) next(err);
-    return null;
-  }
 };
 
 export const getRouteName = async (req, res, next) => {
-  console.log("getRouteName called");
-  const route = req.query?.route || req.route;
-  if (!route) {
-    if (res && res.status) {
-      res.status(400).json({ error: 'Missing route' });
+    console.log("getRouteName called");
+    const { route } = req.query;
+    if (!route) return res.status(400).json({ error: 'Missing route' });
+    try {
+        req.routeName = await fetchRouteName(route);
+        next();
+    } catch (err) {
+        console.error("Error fetching route name:", err.message);
+        next(err);
     }
-    if (next) next(new Error('Missing route'));
-    return null;
-  }
-  const url = `https://telematics.oasa.gr/api/?act=getRouteName&p1=${route}`;
-  console.log("Fetching route names from:", url);
-  try {
-    const apiRes = await axios.post(url);
-    console.log("Got route names!");
-    if (req) req.routeName = apiRes.data;
-    if (typeof next === 'function') {
-      req.routeName = apiRes.data;
-      next();
-    }
-    return apiRes.data;
-  } catch (err) {
-    console.error("Error fetching route names:", err);
-    if (res && res.status) {
-      res.status(500).json({ error: 'Failed to fetch route names', details: err.message });
-    }
-    if (next) next(err);
-    return null;
-  }
 };
 
 export const getStopRoutes = async (req, res, next) => {
-  console.log("getStopRoutes called");
-  const stopcode = req.query?.stopcode || req.stopcode;
-  if (!stopcode) {
-    if (res && res.status) {
-      res.status(400).json({ error: 'Missing stopcode' });
+    console.log("getStopRoutes called");
+    const { stopcode } = req.query;
+    if (!stopcode) return res.status(400).json({ error: 'Missing stopcode' });
+    try {
+        req.stopRoutes = await fetchStopRoutes(stopcode);
+        next();
+    } catch (err) {
+        console.error("Error fetching stop routes:", err.message);
+        next(err);
     }
-    if (next) next(new Error('Missing stopcode'));
-    return null;
-  }
-  const url = `https://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopcode}`;
-  console.log("Fetching route info from:", url);
-  try {
-    const apiRes = await axios.post(url);
-    console.log("Got Routes for stop!");
-    if (req) req.stopRoutes = apiRes.data;
-    if (typeof next === 'function') {
-      req.stopRoutes = apiRes.data;
-      next();
-    }
-    return apiRes.data;
-  } catch (err) {
-    console.error("Error fetching route info:", err);
-    if (res && res.status) {
-      res.status(500).json({ error: 'Failed to fetch route names', details: err.message });
-    }
-    if (next) next(err);
-    return null;
-  }
 };
 
-export const getLocalInfo = async (req, res, next) => {
-  console.log("getLocalInfo called");
-  const stops = await getLocalStops(req, res, next);
-  console.log("Closest stops:");
-  if (!stops || stops.length === 0) {
-    return res.status(404).json({ error: 'No stops found for the given coordinates' });
-  }
-
-  for (const stop of stops) {
-    const stopRoutes = await getStopRoutes({ query: { stopcode: stop.StopCode } }, res, next);
-    const arrivals = await getStopArrivals({ query: { stopcode: stop.StopCode } }, res, next);
-    if (arrivals && arrivals.length > 0) {
-      stop.arrivals = arrivals;
-      for (const arrival of stop.arrivals) {
-        const matchingRoute = stopRoutes.find(route => route.RouteCode === arrival.route_code);
-        arrival.LineID = matchingRoute.LineID || null;
-        arrival.RouteDescr = matchingRoute.RouteDescr || null;
-        arrival.RouteDescrEng = matchingRoute.RouteDescrEng || null;
-        arrival.LineCode = matchingRoute.LineCode || null;
-      }
-    } else {
-      stop.arrivals = [];
+function hydrateStopArrivals(stop, stopRoutes, arrivals) {
+    if (!arrivals || arrivals.length === 0) {
+        stop.arrivals = [];
+        return;
     }
-  }
-  return res.json(stops);
-}
-/**
- * Optimized and parallelized version of getLocalInfo.
- * Fetches stop routes and arrivals in parallel for each stop.
- */
-//http://localhost:3000/localInfo?x=37.976910&y=23.648170
-export const getLocalInfoParallel = async (req, res, next) => {
-  console.log("getLocalInfoParallel called");
-  const stops = await getLocalStops(req, res);
-  console.log("Closest stops:");
-  if (!stops || stops.length === 0) {
-    return res.status(404).json({ error: 'No stops found for the given coordinates' });
-  }
-
-  // For each stop, fetch stopRoutes and arrivals in parallel
-  await Promise.all(stops.map(async (stop) => {
-    const [stopRoutes, arrivals] = await Promise.all([
-      getStopRoutes({ query: { stopcode: stop.StopCode } }, res),
-      getStopArrivals({ query: { stopcode: stop.StopCode } }, res)
-    ]);
-    if (arrivals && arrivals.length > 0) {
-      stop.arrivals = arrivals;
-      for (const arrival of stop.arrivals) {
-        const matchingRoute = stopRoutes.find(route => route.RouteCode === arrival.route_code);
+    stop.arrivals = arrivals;
+    for (const arrival of stop.arrivals) {
+        const matchingRoute = stopRoutes.find(r => r.RouteCode === arrival.route_code);
         arrival.LineID = matchingRoute?.LineID || null;
         arrival.RouteDescr = matchingRoute?.RouteDescr || null;
         arrival.RouteDescrEng = matchingRoute?.RouteDescrEng || null;
         arrival.LineCode = matchingRoute?.LineCode || null;
-      }
-    } else {
-      stop.arrivals = [];
     }
-  }));
+}
 
-  return res.json(stops);
+// Parallel fan-out across stops. Uses allSettled so a single slow OASA call
+// no longer hangs the whole response — that stop just comes back without
+// arrivals/routes filled in.
+export const getLocalInfoParallel = async (req, res, next) => {
+    console.log("getLocalInfoParallel called");
+    const { x, y } = req.query;
+    if (!x || !y) return res.status(400).json({ error: 'Missing coordinates' });
+
+    let stops;
+    try {
+        stops = await fetchClosestStops(x, y);
+    } catch (err) {
+        console.error("Error fetching closest stops:", err.message);
+        return next(err);
+    }
+
+    if (!stops || stops.length === 0) {
+        return res.status(404).json({ error: 'No stops found for the given coordinates' });
+    }
+
+    await Promise.all(stops.map(async (stop) => {
+        const [routesResult, arrivalsResult] = await Promise.allSettled([
+            fetchStopRoutes(stop.StopCode),
+            fetchStopArrivals(stop.StopCode),
+        ]);
+
+        if (routesResult.status === 'rejected') {
+            console.warn(`stopRoutes failed for ${stop.StopCode}:`, routesResult.reason?.message);
+        }
+        if (arrivalsResult.status === 'rejected') {
+            console.warn(`stopArrivals failed for ${stop.StopCode}:`, arrivalsResult.reason?.message);
+        }
+
+        const stopRoutes = routesResult.status === 'fulfilled' ? routesResult.value : [];
+        const arrivals   = arrivalsResult.status === 'fulfilled' ? arrivalsResult.value : [];
+
+        hydrateStopArrivals(stop, stopRoutes, arrivals);
+    }));
+
+    req.stops = stops;
+    next();
+};
+
+// Sequential variant — kept for parity with the original. Same allSettled
+// hardening so one slow stop doesn't cascade.
+export const getLocalInfo = async (req, res, next) => {
+    console.log("getLocalInfo called");
+    const { x, y } = req.query;
+    if (!x || !y) return res.status(400).json({ error: 'Missing coordinates' });
+
+    let stops;
+    try {
+        stops = await fetchClosestStops(x, y);
+    } catch (err) {
+        console.error("Error fetching closest stops:", err.message);
+        return next(err);
+    }
+
+    if (!stops || stops.length === 0) {
+        return res.status(404).json({ error: 'No stops found for the given coordinates' });
+    }
+
+    for (const stop of stops) {
+        const [routesResult, arrivalsResult] = await Promise.allSettled([
+            fetchStopRoutes(stop.StopCode),
+            fetchStopArrivals(stop.StopCode),
+        ]);
+        const stopRoutes = routesResult.status === 'fulfilled' ? routesResult.value : [];
+        const arrivals   = arrivalsResult.status === 'fulfilled' ? arrivalsResult.value : [];
+        hydrateStopArrivals(stop, stopRoutes, arrivals);
+    }
+
+    req.stops = stops;
+    next();
 };
