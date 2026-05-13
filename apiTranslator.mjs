@@ -150,20 +150,54 @@ export const getStopRoutes = async (req, res, next) => {
     }
 };
 
-function hydrateStopArrivals(stop, stopRoutes, arrivals) {
-    if (!arrivals || arrivals.length === 0) {
-        stop.arrivals = [];
-        return;
-    }
-    stop.arrivals = arrivals;
-    for (const arrival of stop.arrivals) {
+function hydrateArrivals(stopRoutes, arrivals) {
+    if (!arrivals || arrivals.length === 0) return [];
+    for (const arrival of arrivals) {
         const matchingRoute = stopRoutes.find(r => r.RouteCode === arrival.route_code);
         arrival.LineID = matchingRoute?.LineID || null;
         arrival.RouteDescr = matchingRoute?.RouteDescr || null;
         arrival.RouteDescrEng = matchingRoute?.RouteDescrEng || null;
         arrival.LineCode = matchingRoute?.LineCode || null;
     }
+    return arrivals;
 }
+
+function hydrateStopArrivals(stop, stopRoutes, arrivals) {
+    stop.arrivals = hydrateArrivals(stopRoutes, arrivals);
+}
+
+// Fan-out arrivals + routes for a list of stopcodes. Returns
+// [{ StopCode, arrivals }] so the client can patch existing stop DOM.
+export const getArrivalsForStops = async (req, res, next) => {
+    console.log("getArrivalsForStops called");
+    const codesParam = req.query?.codes;
+    if (!codesParam) return res.status(400).json({ error: 'Missing codes' });
+
+    const codes = codesParam.split(',').map(c => c.trim()).filter(Boolean);
+    if (codes.length === 0) return res.status(400).json({ error: 'Empty codes' });
+
+    const results = await Promise.all(codes.map(async (code) => {
+        const [routesResult, arrivalsResult] = await Promise.allSettled([
+            fetchStopRoutes(code),
+            fetchStopArrivals(code),
+        ]);
+
+        if (routesResult.status === 'rejected') {
+            console.warn(`stopRoutes failed for ${code}:`, routesResult.reason?.message);
+        }
+        if (arrivalsResult.status === 'rejected') {
+            console.warn(`stopArrivals failed for ${code}:`, arrivalsResult.reason?.message);
+        }
+
+        const stopRoutes = routesResult.status === 'fulfilled' ? routesResult.value : [];
+        const arrivals   = arrivalsResult.status === 'fulfilled' ? arrivalsResult.value : [];
+
+        return { StopCode: Number(code), arrivals: hydrateArrivals(stopRoutes, arrivals) };
+    }));
+
+    req.arrivalsForStops = results;
+    next();
+};
 
 // Parallel fan-out across stops. Uses allSettled so a single slow OASA call
 // no longer hangs the whole response — that stop just comes back without

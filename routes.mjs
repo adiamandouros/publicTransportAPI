@@ -1,5 +1,5 @@
 import express from 'express';
-import { getLocalStops, getStopArrivals, getRouteName, getStopRoutes, getLocalInfo, getLocalInfoParallel } from './apiTranslator.mjs';
+import { getLocalStops, getStopArrivals, getRouteName, getStopRoutes, getLocalInfo, getLocalInfoParallel, getArrivalsForStops } from './apiTranslator.mjs';
 
 export const router = express.Router();
 
@@ -54,4 +54,12 @@ router.get("/stopRoutes", getStopRoutes, (request, response)=>{
 router.get("/localInfo", getLocalInfoParallel, (request, response)=>{
     console.log("Local info:", request.stops);
     response.status(200).send(request.stops);
+});
+
+// The request should contain a comma-separated list of stop codes.
+// Example: http://localhost:3000/arrivalsForStops?codes=10026,10025,10024
+// Returns an array of { StopCode, arrivals } with arrivals enriched with
+// LineID / RouteDescr / etc. from the corresponding stopRoutes data.
+router.get("/arrivalsForStops", getArrivalsForStops, (request, response)=>{
+    response.status(200).send(request.arrivalsForStops);
 });
